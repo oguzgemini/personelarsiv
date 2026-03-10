@@ -71,10 +71,9 @@
     }
     const auth = firebase.auth();
     const db = firebase.firestore();
-    const APP_ID = 'personel-arsiv-app';
 
-    // Ana Veritabanı Yolu Fonksiyonu
-    const getPersonnelRef = (uid) => db.collection('artifacts').doc(APP_ID).collection('users').doc(uid).collection('personnel');
+    // Ana Veritabanı Yolu Fonksiyonu (ARTIK GLOBAL HAVUZA KAYDEDER)
+    const getPersonnelRef = () => db.collection('personnel');
 
     // --- ANA UYGULAMA BİLEŞENİ ---
     function App() {
@@ -115,12 +114,12 @@
         return () => unsubscribe();
       }, []);
 
-      // 2. Verileri Getirme (Realtime Snapshot)
+      // 2. Verileri Getirme (Ortak/Global Havuzdan)
       useEffect(() => {
         if (!user) return;
         setIsLoading(true);
         
-        const unsubscribe = getPersonnelRef(user.uid).onSnapshot((snapshot) => {
+        const unsubscribe = getPersonnelRef().onSnapshot((snapshot) => {
           const items = [];
           snapshot.forEach((doc) => {
             items.push({ id: doc.id, ...doc.data() });
@@ -186,7 +185,7 @@
         }
       };
 
-      // --- VERİTABANI İŞLEMLERİ ---
+      // --- VERİTABANI İŞLEMLERİ (Global Yola Göre Güncellendi) ---
 
       const handleAddPerson = async (e) => {
         e.preventDefault();
@@ -201,7 +200,7 @@
         };
 
         try {
-          await getPersonnelRef(user.uid).add(newPerson);
+          await getPersonnelRef().add(newPerson);
           setNewName(""); setNewStartDate(""); setNewEndDate("");
           setActiveTab("folders");
           setSelectedFolder(parseInt(newFolder));
@@ -235,7 +234,7 @@
           setIsLoading(true);
           try {
             const batch = db.batch();
-            const ref = getPersonnelRef(user.uid);
+            const ref = getPersonnelRef();
             
             newItems.forEach(item => {
               const docRef = ref.doc(); // Otomatik ID oluşturur
@@ -269,7 +268,7 @@
               const batch = db.batch();
               const itemsToDelete = data.filter(item => Number(item.folder) === Number(folderNo));
               itemsToDelete.forEach(item => {
-                const docRef = getPersonnelRef(user.uid).doc(item.id);
+                const docRef = getPersonnelRef().doc(item.id);
                 batch.delete(docRef);
               });
               await batch.commit();
@@ -291,7 +290,7 @@
           onConfirm: async () => {
             if(!user) return;
             try {
-              await getPersonnelRef(user.uid).doc(person.id).delete();
+              await getPersonnelRef().doc(person.id).delete();
             } catch (error) {
               setModalConfig({ type: 'alert', title: 'Hata', message: 'Personel silinemedi.' });
             }
@@ -306,7 +305,7 @@
         if(!user) return;
         
         try {
-          await getPersonnelRef(user.uid).doc(editItem.id).update({
+          await getPersonnelRef().doc(editItem.id).update({
             folder: Number(editItem.folder),
             no: Number(editItem.no),
             name: editItem.name.toUpperCase(),
@@ -335,7 +334,7 @@
               for (const chunk of chunks) {
                 const batch = db.batch();
                 chunk.forEach(item => {
-                  const docRef = getPersonnelRef(user.uid).doc(item.id);
+                  const docRef = getPersonnelRef().doc(item.id);
                   batch.delete(docRef);
                 });
                 await batch.commit();
