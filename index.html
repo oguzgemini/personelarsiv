@@ -5,14 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Personel Arşiv Yönetim Sistemi</title>
 
-  <!-- Tailwind CSS (Tasarım için) -->
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
-      darkMode: 'class', // Gece modu için class stratejisini aktif ediyoruz
-      theme: {
-        extend: {},
-      },
+      darkMode: 'class',
+      theme: { extend: {} },
     }
   </script>
 
@@ -34,8 +32,6 @@
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
     ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-    
-    /* Gece Modu Scrollbar */
     .dark ::-webkit-scrollbar-thumb { background: #475569; }
     .dark ::-webkit-scrollbar-thumb:hover { background: #64748b; }
   </style>
@@ -90,56 +86,35 @@
     const getPersonnelRef = () => db.collection('personnel');
 
     // --- LOGO AYARI ---
-    // Gönderdiğiniz logoyu kullanabilmek için dosya yolunu belirttik. 
-    // DİKKAT: "unnamed.jpg" dosyası bilgisayarınızda "index.html" ile aynı klasörde olmalıdır.
     const COMPANY_LOGO = "./unnamed.jpg"; 
 
-    // --- YARDIMCI FONKSİYONLAR (GELİŞMİŞ TARİH İŞLEMLERİ) ---
-    
-    // Farklı formatlardaki tarihleri JS Date objesine çeviren akıllı fonksiyon (Örn: 10.11.2023 veya 2023-11-10)
+    // --- YARDIMCI FONKSİYONLAR ---
     const parseDateStr = (dateStr) => {
       if (!dateStr || typeof dateStr !== 'string' || dateStr.trim() === '-' || dateStr.trim() === '') return null;
       let str = dateStr.trim();
       const parts = str.split(/[\.\-\/]/);
-      
       if (parts.length === 3) {
         let year, month, day;
-        if (parts[0].length === 4) { // YYYY-MM-DD
-          year = parseInt(parts[0]);
-          month = parseInt(parts[1]) - 1;
-          day = parseInt(parts[2]);
-        } else { // DD.MM.YYYY veya DD/MM/YYYY
-          day = parseInt(parts[0]);
-          month = parseInt(parts[1]) - 1;
-          year = parseInt(parts[2]);
-        }
+        if (parts[0].length === 4) { year = parseInt(parts[0]); month = parseInt(parts[1]) - 1; day = parseInt(parts[2]); } 
+        else { day = parseInt(parts[0]); month = parseInt(parts[1]) - 1; year = parseInt(parts[2]); }
         const date = new Date(year, month, day);
         return isNaN(date.getTime()) ? null : date;
       }
-      
       const fallback = new Date(str);
       return isNaN(fallback.getTime()) ? null : fallback;
     };
 
     const calculateDuration = (start, end) => {
-      const s = parseDateStr(start);
-      const e = parseDateStr(end);
-      
+      const s = parseDateStr(start); const e = parseDateStr(end);
       if (!s || !e) return '-';
-      
       let diffDays = Math.floor((e - s) / (1000 * 60 * 60 * 24));
       if (diffDays < 0) return 'Hatalı Tarih';
-      
-      const years = Math.floor(diffDays / 365);
-      diffDays %= 365;
-      const months = Math.floor(diffDays / 30);
-      const days = diffDays % 30;
-      
+      const years = Math.floor(diffDays / 365); diffDays %= 365;
+      const months = Math.floor(diffDays / 30); const days = diffDays % 30;
       let res = [];
       if (years > 0) res.push(`${years} Yıl`);
       if (months > 0) res.push(`${months} Ay`);
       if (days > 0 || res.length === 0) res.push(`${days} Gün`);
-      
       return res.join(' ');
     };
 
@@ -154,7 +129,7 @@
       }
     };
 
-    // --- ANA UYGULAMA BİLEŞENİ ---
+    // --- ANA UYGULAMA ---
     function App() {
       const [data, setData] = useState([]);
       const [searchTerm, setSearchTerm] = useState("");
@@ -179,7 +154,6 @@
       const [editItem, setEditItem] = useState(null);
       const [modalConfig, setModalConfig] = useState(null);
 
-      // Dark Mode Effect
       useEffect(() => {
         if (darkMode) document.documentElement.classList.add('dark');
         else document.documentElement.classList.remove('dark');
@@ -190,33 +164,25 @@
           console.error("Giriş hatası:", error);
           setModalConfig({ type: 'alert', title: 'Bağlantı Hatası', message: 'Sisteme güvenli giriş yapılamadı.' });
         });
-
-        const unsubscribe = auth.onAuthStateChanged((currentUser) => {
-          setUser(currentUser);
-        });
+        const unsubscribe = auth.onAuthStateChanged((currentUser) => setUser(currentUser));
         return () => unsubscribe();
       }, []);
 
       useEffect(() => {
         if (!user) return;
         setIsLoading(true);
-        
         const unsubscribe = getPersonnelRef().onSnapshot((snapshot) => {
           const items = [];
-          snapshot.forEach((doc) => {
-            items.push({ id: doc.id, ...doc.data() });
-          });
+          snapshot.forEach((doc) => items.push({ id: doc.id, ...doc.data() }));
           setData(items);
           setIsLoading(false);
         }, (error) => {
           console.error("Veri çekme hatası:", error);
           setIsLoading(false);
         });
-
         return () => unsubscribe();
       }, [user]);
 
-      // Yıl Seçeneklerini Veritabanından Okuma
       const availableYears = useMemo(() => {
         const years = new Set();
         data.forEach(d => {
@@ -226,15 +192,12 @@
         return ["Tümü", ...Array.from(years).sort().reverse()];
       }, [data]);
 
-      // Arama ve Filtreleme
       const filteredData = useMemo(() => {
         return data.filter(item => {
           const matchSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || item.folder.toString().includes(searchTerm.toLowerCase());
-          
           const eDate = parseDateStr(item.endDate);
           const itemYear = eDate ? eDate.getFullYear().toString() : null;
           const matchYear = filterYear === "Tümü" || itemYear === filterYear;
-          
           return matchSearch && matchYear;
         }).sort((a, b) => {
           if (a.folder !== b.folder) return b.folder - a.folder; 
@@ -256,7 +219,6 @@
           .sort((a, b) => a.folderNo - b.folderNo);
       }, [filteredData]);
 
-      // Yıllara Göre Gruplama (GELİŞMİŞ RAPORLAMA İÇİN)
       const yearlyData = useMemo(() => {
         const groups = {};
         let maxCount = 0;
@@ -264,18 +226,10 @@
         data.forEach(p => {
            const eDate = parseDateStr(p.endDate);
            const year = eDate ? eDate.getFullYear().toString() : "Belirsiz";
-           
-           if(!groups[year]) {
-             groups[year] = { year, personnel: [], reasonCounts: {}, totalDays: 0, validDurationCount: 0 };
-           }
-           
+           if(!groups[year]) groups[year] = { year, personnel: [], reasonCounts: {}, totalDays: 0, validDurationCount: 0 };
            groups[year].personnel.push(p);
-
-           // Nedenleri Say
            const reason = p.reason || "Belirtilmedi";
            groups[year].reasonCounts[reason] = (groups[year].reasonCounts[reason] || 0) + 1;
-
-           // Süreleri Topla (Ortalama hesaplamak için)
            const sDate = parseDateStr(p.startDate);
            if (sDate && eDate) {
              const diff = Math.floor((eDate - sDate) / (1000 * 60 * 60 * 24));
@@ -289,8 +243,6 @@
         return Object.keys(groups).sort((a,b) => b.localeCompare(a)).map(year => {
            const g = groups[year];
            if (g.personnel.length > maxCount) maxCount = g.personnel.length;
-
-           // Ortalama Süre Formatlama
            let avgStr = "-";
            if (g.validDurationCount > 0) {
              const avgDays = Math.floor(g.totalDays / g.validDurationCount);
@@ -302,43 +254,26 @@
              if (res.length === 0) res.push(`${avgDays} Gün`);
              avgStr = res.join(' ');
            }
-
            return {
-             year: g.year,
-             count: g.personnel.length,
+             year: g.year, count: g.personnel.length,
              personnel: g.personnel.sort((a, b) => a.name.localeCompare(b.name)),
-             reasonCounts: g.reasonCounts,
-             avgDuration: avgStr,
-             percentage: 0 // Aşağıda hesaplanacak
+             reasonCounts: g.reasonCounts, avgDuration: avgStr, percentage: 0
            };
         }).map(g => ({ ...g, percentage: maxCount > 0 ? Math.round((g.count / maxCount) * 100) : 0 }));
       }, [data]);
 
-      // İstatistikler (Dashboard)
       const stats = useMemo(() => {
         const currentYear = new Date().getFullYear();
-        
-        let leftThisYear = 0;
-        let totalDays = 0;
-        let validDurationCount = 0;
-        const reasonCounts = {};
+        let leftThisYear = 0; let totalDays = 0; let validDurationCount = 0; const reasonCounts = {};
 
         data.forEach(d => {
-          // Bu Yıl Ayrılanlar
           const eDate = parseDateStr(d.endDate);
           if (eDate && eDate.getFullYear() === currentYear) leftThisYear++;
-          
-          // Ortalama Süre Hesaplama
           const sDate = parseDateStr(d.startDate);
           if (sDate && eDate) {
              const diff = Math.floor((eDate - sDate) / (1000 * 60 * 60 * 24));
-             if (diff >= 0) {
-               totalDays += diff;
-               validDurationCount++;
-             }
+             if (diff >= 0) { totalDays += diff; validDurationCount++; }
           }
-
-          // En Sık Neden Hesaplama
           if (d.reason && d.reason !== "Belirtilmedi") {
             reasonCounts[d.reason] = (reasonCounts[d.reason] || 0) + 1;
           }
@@ -352,33 +287,23 @@
            maxFolderStr = `D-${maxF} (${counts[maxF]} Kişi)`;
         }
 
-        // Ortalama Süre Metni
         let avgDurationStr = "-";
         if (validDurationCount > 0) {
           const avgDays = Math.floor(totalDays / validDurationCount);
-          const y = Math.floor(avgDays / 365);
-          const m = Math.floor((avgDays % 365) / 30);
+          const y = Math.floor(avgDays / 365); const m = Math.floor((avgDays % 365) / 30);
           let res = [];
-          if (y > 0) res.push(`${y} Yıl`);
-          if (m > 0) res.push(`${m} Ay`);
+          if (y > 0) res.push(`${y} Yıl`); if (m > 0) res.push(`${m} Ay`);
           if (res.length === 0) res.push(`${avgDays} Gün`);
           avgDurationStr = res.join(' ');
         }
 
-        // En Sık Neden Metni
         let commonReasonStr = "-";
         const reasonsArr = Object.keys(reasonCounts);
-        if (reasonsArr.length > 0) {
-          commonReasonStr = reasonsArr.reduce((a, b) => reasonCounts[a] > reasonCounts[b] ? a : b);
-        }
+        if (reasonsArr.length > 0) commonReasonStr = reasonsArr.reduce((a, b) => reasonCounts[a] > reasonCounts[b] ? a : b);
 
         return {
-          total: data.length,
-          folders: new Set(data.map(d => d.folder)).size,
-          thisYear: leftThisYear,
-          maxFolder: maxFolderStr,
-          avgDuration: avgDurationStr,
-          commonReason: commonReasonStr
+          total: data.length, folders: new Set(data.map(d => d.folder)).size,
+          thisYear: leftThisYear, maxFolder: maxFolderStr, avgDuration: avgDurationStr, commonReason: commonReasonStr
         };
       }, [data]);
 
@@ -396,30 +321,25 @@
         setSelectedFolder(null); 
         if (tab === "add") {
           const suggestions = suggestNextValues();
-          setNewFolder(suggestions.folder);
-          setNewNo(suggestions.no);
-          setNewReason("Belirtilmedi");
+          setNewFolder(suggestions.folder); setNewNo(suggestions.no); setNewReason("Belirtilmedi");
         }
       };
+
+      // --- SİLME VE KAYDETME İŞLEMLERİ (GÜNCELLENDİ) ---
 
       const handleAddPerson = async (e) => {
         e.preventDefault();
         if (!newName || !newFolder || !newNo || !user) return;
         
         const newPerson = {
-          folder: parseInt(newFolder),
-          no: parseInt(newNo),
-          name: newName.toUpperCase(),
-          startDate: newStartDate || "-",
-          endDate: newEndDate || "-",
-          reason: newReason || "Belirtilmedi"
+          folder: parseInt(newFolder), no: parseInt(newNo), name: newName.toUpperCase(),
+          startDate: newStartDate || "-", endDate: newEndDate || "-", reason: newReason || "Belirtilmedi"
         };
 
         try {
           await getPersonnelRef().add(newPerson);
           setNewName(""); setNewStartDate(""); setNewEndDate(""); setNewReason("Belirtilmedi");
-          setActiveTab("folders");
-          setSelectedFolder(parseInt(newFolder));
+          setActiveTab("folders"); setSelectedFolder(parseInt(newFolder));
         } catch (error) {
           setModalConfig({ type: 'alert', title: 'Hata', message: 'Kayıt eklenemedi.' });
         }
@@ -437,12 +357,8 @@
           const cols = row.split('\t');
           if (cols.length >= 2 && cols[0].trim() !== "") { 
             newItems.push({
-              folder: Number(bulkFolder),
-              no: Number(cols[0]) || 0,
-              name: cols[1]?.trim()?.toUpperCase() || "BİLİNMEYEN",
-              startDate: cols[2]?.trim() || "-",
-              endDate: cols[3]?.trim() || "-",
-              reason: "Belirtilmedi"
+              folder: Number(bulkFolder), no: Number(cols[0]) || 0, name: cols[1]?.trim()?.toUpperCase() || "BİLİNMEYEN",
+              startDate: cols[2]?.trim() || "-", endDate: cols[3]?.trim() || "-", reason: "Belirtilmedi"
             });
           }
         });
@@ -452,15 +368,11 @@
           try {
             const batch = db.batch();
             const ref = getPersonnelRef();
-            newItems.forEach(item => {
-              const docRef = ref.doc();
-              batch.set(docRef, item);
-            });
+            newItems.forEach(item => batch.set(ref.doc(), item));
             await batch.commit();
             setBulkText("");
             setModalConfig({ type: 'alert', title: 'Başarılı', message: `${newItems.length} kayıt aktarıldı!` });
-            setActiveTab('folders');
-            setSelectedFolder(Number(bulkFolder));
+            setActiveTab('folders'); setSelectedFolder(Number(bulkFolder));
           } catch (error) {
             setModalConfig({ type: 'alert', title: 'Hata', message: 'Aktarım başarısız oldu.' });
           } finally {
@@ -471,6 +383,23 @@
         }
       };
 
+      // Tekil Kişi Silme (Buton Çakışması Giderildi)
+      const handleDeletePerson = (person) => {
+        setModalConfig({
+          type: 'confirm',
+          title: 'Personeli Sil',
+          message: `${person.name} kalıcı olarak silinecek. Emin misiniz?`,
+          onConfirm: async () => {
+            try { 
+              await getPersonnelRef().doc(person.id).delete(); 
+            } catch (error) { 
+              setTimeout(() => setModalConfig({ type: 'alert', title: 'Hata', message: 'Personel silinemedi.' }), 100); 
+            }
+          }
+        });
+      };
+
+      // Klasör Silme (Toplu Silme)
       const handleDeleteFolder = (folderNo) => {
         setModalConfig({
           type: 'confirm',
@@ -481,14 +410,11 @@
             try {
               const batch = db.batch();
               const itemsToDelete = data.filter(item => Number(item.folder) === Number(folderNo));
-              itemsToDelete.forEach(item => {
-                const docRef = getPersonnelRef().doc(item.id);
-                batch.delete(docRef);
-              });
+              itemsToDelete.forEach(item => batch.delete(getPersonnelRef().doc(item.id)));
               await batch.commit();
               setSelectedFolder(null);
             } catch (error) {
-              setModalConfig({ type: 'alert', title: 'Hata', message: 'Klasör silinemedi.' });
+              setTimeout(() => setModalConfig({ type: 'alert', title: 'Hata', message: 'Klasör silinemedi.' }), 100);
             } finally {
               setIsLoading(false);
             }
@@ -496,42 +422,19 @@
         });
       };
 
-      const handleDeletePerson = (person) => {
-        setModalConfig({
-          type: 'confirm',
-          title: 'Personeli Sil',
-          message: `${person.name} kalıcı olarak silinecek. Emin misiniz?`,
-          onConfirm: async () => {
-            try { await getPersonnelRef().doc(person.id).delete(); } 
-            catch (error) { setModalConfig({ type: 'alert', title: 'Hata', message: 'Silinemedi.' }); }
-          }
-        });
-      };
-
-      // DÜZENLEME (EDİT) KAYDETME
       const saveEdit = async () => {
         if (!editItem.name || !editItem.folder || !editItem.no) {
-           setModalConfig({ type: 'alert', title: 'Eksik Bilgi', message: 'Dosya No, Sıra No ve İsim boş bırakılamaz.' });
-           return;
+           setModalConfig({ type: 'alert', title: 'Eksik Bilgi', message: 'Dosya No, Sıra No ve İsim boş bırakılamaz.' }); return;
         }
-        if(!user) {
-           setModalConfig({ type: 'alert', title: 'Oturum Hatası', message: 'Kullanıcı bağlantısı kurulamadı.' });
-           return;
-        }
-        
+        if(!user) return;
         try {
           await getPersonnelRef().doc(editItem.id).update({
-            folder: Number(editItem.folder),
-            no: Number(editItem.no),
-            name: String(editItem.name).toUpperCase(),
-            startDate: editItem.startDate || "-",
-            endDate: editItem.endDate || "-",
-            reason: editItem.reason || "Belirtilmedi"
+            folder: Number(editItem.folder), no: Number(editItem.no), name: String(editItem.name).toUpperCase(),
+            startDate: editItem.startDate || "-", endDate: editItem.endDate || "-", reason: editItem.reason || "Belirtilmedi"
           });
           setEditItem(null);
         } catch (error) {
-          console.error("Düzenleme hatası:", error);
-          setModalConfig({ type: 'alert', title: 'Hata', message: `Değişiklikler kaydedilemedi. (${error.message})` });
+          setModalConfig({ type: 'alert', title: 'Hata', message: 'Kaydedilemedi.' });
         }
       };
 
@@ -552,7 +455,7 @@
               }
               setActiveTab("folders");
             } catch (error) {
-              setModalConfig({ type: 'alert', title: 'Hata', message: 'Silinemedi.' });
+              setTimeout(() => setModalConfig({ type: 'alert', title: 'Hata', message: 'Silinemedi.' }), 100);
             } finally {
               setIsLoading(false);
             }
@@ -560,63 +463,40 @@
         });
       };
 
-      // Excel (CSV) Formatını Düzeltmek İçin Yardımcı Fonksiyon
       const escapeCSV = (val) => `"${String(val || '').replace(/"/g, '""')}"`;
 
       const exportToCSV = () => {
         if (data.length === 0) return setModalConfig({ type: 'alert', title: 'Uyarı', message: 'Kayıt yok.' });
         const headers = ["Dosya No", "Sıra No", "Personel Adı Soyadı", "İşe Giriş", "İşten Ayrılış", "Ayrılış Nedeni", "Çalışma Süresi"];
-        
-        // Excel için virgül yerine noktalı virgül (;) kullanıyoruz
         const csvContent = [
           headers.map(escapeCSV).join(";"),
           ...data.map(row => [
-            row.folder,
-            row.no,
-            row.name,
-            row.startDate,
-            row.endDate,
-            row.reason || 'Belirtilmedi',
-            calculateDuration(row.startDate, row.endDate)
+            row.folder, row.no, row.name, row.startDate, row.endDate, row.reason || 'Belirtilmedi', calculateDuration(row.startDate, row.endDate)
           ].map(escapeCSV).join(";"))
         ].join("\n");
 
         const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
         const url = URL.createObjectURL(blob);
-        link.setAttribute("href", url);
-        link.setAttribute("download", "Ayrilan_Personel_Arsivi.csv");
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        link.setAttribute("href", url); link.setAttribute("download", "Ayrilan_Personel_Arsivi.csv");
+        document.body.appendChild(link); link.click(); document.body.removeChild(link);
       };
 
       const exportYearToCSV = (yearGroup) => {
         if (!yearGroup || yearGroup.personnel.length === 0) return;
         const headers = ["Dosya No", "Sıra No", "Personel Adı Soyadı", "İşe Giriş", "İşten Ayrılış", "Ayrılış Nedeni", "Çalışma Süresi"];
-        
-        // Excel için virgül yerine noktalı virgül (;) kullanıyoruz
         const csvContent = [
           headers.map(escapeCSV).join(";"),
           ...yearGroup.personnel.map(row => [
-            row.folder,
-            row.no,
-            row.name,
-            row.startDate,
-            row.endDate,
-            row.reason || 'Belirtilmedi',
-            calculateDuration(row.startDate, row.endDate)
+            row.folder, row.no, row.name, row.startDate, row.endDate, row.reason || 'Belirtilmedi', calculateDuration(row.startDate, row.endDate)
           ].map(escapeCSV).join(";"))
         ].join("\n");
 
         const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
         const url = URL.createObjectURL(blob);
-        link.setAttribute("href", url);
-        link.setAttribute("download", `Personel_Rapor_${yearGroup.year}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        link.setAttribute("href", url); link.setAttribute("download", `Personel_Rapor_${yearGroup.year}.csv`);
+        document.body.appendChild(link); link.click(); document.body.removeChild(link);
       };
 
       const Dashboard = () => (
@@ -702,10 +582,10 @@
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right">
                         <div className="flex items-center justify-end gap-2 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                          <button onClick={() => setEditItem({...person})} className="p-2 text-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 dark:text-indigo-400 hover:bg-indigo-100 rounded-xl transition-all hover:scale-105" title="Düzenle">
+                          <button type="button" onClick={(e) => { e.stopPropagation(); setEditItem({...person}); }} className="p-2 text-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 dark:text-indigo-400 hover:bg-indigo-100 rounded-xl transition-all hover:scale-105" title="Düzenle">
                             <Edit2 className="h-4 w-4" />
                           </button>
-                          <button onClick={() => handleDeletePerson(person)} className="p-2 text-rose-600 bg-rose-50 dark:bg-rose-900/30 dark:text-rose-400 hover:bg-rose-100 rounded-xl transition-all hover:scale-105" title="Sil">
+                          <button type="button" onClick={(e) => { e.stopPropagation(); handleDeletePerson(person); }} className="p-2 text-rose-600 bg-rose-50 dark:bg-rose-900/30 dark:text-rose-400 hover:bg-rose-100 rounded-xl transition-all hover:scale-105" title="Sil">
                             <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
@@ -753,20 +633,20 @@
                   <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">İnsan Kaynakları Yönetim Sistemi</p>
                 </div>
               </div>
-              <button onClick={() => setDarkMode(!darkMode)} className="md:hidden p-3 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-600 dark:text-yellow-400">
+              <button type="button" onClick={() => setDarkMode(!darkMode)} className="md:hidden p-3 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-600 dark:text-yellow-400">
                 {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
               </button>
             </div>
             
             <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
               <div className="flex flex-wrap justify-center gap-2 bg-slate-200/50 dark:bg-slate-800/50 p-1.5 rounded-2xl border border-slate-200/50 dark:border-slate-700/50 backdrop-blur-sm w-full md:w-auto">
-                <button onClick={() => handleTabChange('folders')} className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 ${activeTab === 'folders' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-700 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-slate-700/50'}`}><FolderOpen className="h-4 w-4" /> <span className="hidden lg:inline">Klasörler</span></button>
-                <button onClick={() => handleTabChange('search')} className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 ${activeTab === 'search' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-700 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-slate-700/50'}`}><Search className="h-4 w-4" /> <span className="hidden lg:inline">Liste</span></button>
-                <button onClick={() => handleTabChange('reports')} className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 ${activeTab === 'reports' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-700 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-slate-700/50'}`}><BarChart className="h-4 w-4" /> <span className="hidden lg:inline">Raporlar</span></button>
-                <button onClick={() => handleTabChange('add')} className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 ${activeTab === 'add' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-700 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-slate-700/50'}`}><Plus className="h-4 w-4" /> <span className="hidden lg:inline">Ekle</span></button>
-                <button onClick={() => handleTabChange('bulk')} className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 ${activeTab === 'bulk' ? 'bg-indigo-600 shadow text-white' : 'text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30'}`}><ClipboardPaste className="h-4 w-4" /> <span className="hidden lg:inline">Aktar</span></button>
+                <button type="button" onClick={() => handleTabChange('folders')} className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 ${activeTab === 'folders' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-700 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-slate-700/50'}`}><FolderOpen className="h-4 w-4" /> <span className="hidden lg:inline">Klasörler</span></button>
+                <button type="button" onClick={() => handleTabChange('search')} className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 ${activeTab === 'search' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-700 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-slate-700/50'}`}><Search className="h-4 w-4" /> <span className="hidden lg:inline">Liste</span></button>
+                <button type="button" onClick={() => handleTabChange('reports')} className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 ${activeTab === 'reports' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-700 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-slate-700/50'}`}><BarChart className="h-4 w-4" /> <span className="hidden lg:inline">Raporlar</span></button>
+                <button type="button" onClick={() => handleTabChange('add')} className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 ${activeTab === 'add' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-700 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-slate-700/50'}`}><Plus className="h-4 w-4" /> <span className="hidden lg:inline">Ekle</span></button>
+                <button type="button" onClick={() => handleTabChange('bulk')} className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 ${activeTab === 'bulk' ? 'bg-indigo-600 shadow text-white' : 'text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30'}`}><ClipboardPaste className="h-4 w-4" /> <span className="hidden lg:inline">Aktar</span></button>
               </div>
-              <button onClick={() => setDarkMode(!darkMode)} className="hidden md:flex p-3 bg-slate-100 dark:bg-slate-800 rounded-xl text-slate-600 dark:text-yellow-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+              <button type="button" onClick={() => setDarkMode(!darkMode)} className="hidden md:flex p-3 bg-slate-100 dark:bg-slate-800 rounded-xl text-slate-600 dark:text-yellow-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
                 {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
               </button>
             </div>
@@ -789,7 +669,6 @@
                         <input type="text" className="block w-full pl-12 pr-4 py-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-white dark:border-slate-700 rounded-3xl shadow-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-400 transition-all font-medium text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none" placeholder="İsim veya dosya no ile ara..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                       </div>
                       
-                      {/* Yıl Filtresi */}
                       <div className="relative w-32 md:w-40 shrink-0">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Filter className="h-4 w-4 text-slate-400" /></div>
                         <select value={filterYear} onChange={(e) => setFilterYear(e.target.value)} className="block w-full pl-9 pr-4 py-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-white dark:border-slate-700 rounded-3xl shadow-sm focus:ring-4 focus:ring-blue-500/10 outline-none font-bold text-slate-700 dark:text-slate-200 appearance-none cursor-pointer">
@@ -798,7 +677,7 @@
                       </div>
                     </div>
                     
-                    <button onClick={exportToCSV} className="flex items-center justify-center gap-2 px-8 py-4 bg-slate-900 dark:bg-blue-600 text-white rounded-3xl hover:bg-slate-800 dark:hover:bg-blue-700 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 font-bold shrink-0">
+                    <button type="button" onClick={exportToCSV} className="flex items-center justify-center gap-2 px-8 py-4 bg-slate-900 dark:bg-blue-600 text-white rounded-3xl hover:bg-slate-800 dark:hover:bg-blue-700 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 font-bold shrink-0">
                       <Download className="h-5 w-5" /> Excel İndir
                     </button>
                   </div>
@@ -827,7 +706,7 @@
                   <div>
                     <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-4 rounded-[2rem] shadow-sm gap-4">
                       <div className="flex items-center gap-4">
-                        <button onClick={() => setSelectedFolder(null)} className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 rounded-2xl transition-all text-sm font-bold"><ChevronLeft className="h-4 w-4" /> Geri Dön</button>
+                        <button type="button" onClick={() => setSelectedFolder(null)} className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 rounded-2xl transition-all text-sm font-bold"><ChevronLeft className="h-4 w-4" /> Geri Dön</button>
                         <div className="h-8 w-px bg-slate-200 dark:bg-slate-700 hidden md:block"></div>
                         <div className="flex items-center gap-3">
                           <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-xl"><FolderOpen className="h-6 w-6 text-blue-600 dark:text-blue-400" fill="currentColor" fillOpacity="0.2" /></div>
@@ -837,7 +716,7 @@
                           </div>
                         </div>
                       </div>
-                      <button onClick={() => handleDeleteFolder(selectedFolder)} className="flex items-center justify-center gap-2 px-5 py-2.5 bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500 hover:text-white rounded-2xl transition-all text-sm font-bold shrink-0"><Trash2 className="h-4 w-4" /> Klasörü Sil</button>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteFolder(selectedFolder); }} className="flex items-center justify-center gap-2 px-5 py-2.5 bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500 hover:text-white rounded-2xl transition-all text-sm font-bold shrink-0"><Trash2 className="h-4 w-4" /> Klasörü Sil</button>
                     </div>
                     {renderTable(groupedFolders.find(f => f.folderNo === selectedFolder)?.items || [])}
                   </div>
@@ -856,7 +735,6 @@
             {activeTab === 'reports' && data.length > 0 && (
               <div className="space-y-6 animate-in fade-in duration-500">
                 
-                {/* CSS Bar Chart Genel Bakış */}
                 <div className="bg-white dark:bg-slate-800 rounded-[2rem] p-6 md:p-8 shadow-sm border border-slate-100 dark:border-slate-700 mb-8">
                    <h3 className="text-lg font-bold text-slate-700 dark:text-slate-200 mb-6 flex items-center gap-2"><BarChart className="h-5 w-5 text-blue-500" /> Yıllara Göre İşten Ayrılma Trendi</h3>
                    <div className="flex items-end h-48 gap-2 md:gap-4 overflow-x-auto pb-2">
@@ -876,7 +754,6 @@
                   {yearlyData.map(group => (
                     <div key={group.year} className="bg-white dark:bg-slate-800 rounded-[2rem] p-6 shadow-sm border border-slate-100 dark:border-slate-700 hover:shadow-md transition-all flex flex-col">
                       
-                      {/* Kart Başlığı */}
                       <div className="flex justify-between items-start mb-4 border-b border-slate-100 dark:border-slate-700 pb-4">
                         <div>
                           <h3 className="text-2xl font-black text-slate-800 dark:text-slate-100">{group.year === "Belirsiz" ? "Tarihi Olmayanlar" : `${group.year} Yılı`}</h3>
@@ -884,13 +761,12 @@
                         </div>
                         <div className="flex flex-col items-end gap-2">
                           <span className="px-4 py-2 bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 rounded-2xl font-black text-lg border border-rose-100 dark:border-rose-800/50">{group.count} Kişi</span>
-                          <button onClick={() => exportYearToCSV(group)} className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-blue-600 hover:text-white dark:hover:bg-blue-500 text-slate-600 dark:text-slate-300 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all shadow-sm">
+                          <button type="button" onClick={() => exportYearToCSV(group)} className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-blue-600 hover:text-white dark:hover:bg-blue-500 text-slate-600 dark:text-slate-300 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all shadow-sm">
                             <Download className="h-3 w-3" /> Excel'e Aktar
                           </button>
                         </div>
                       </div>
 
-                      {/* Ayrılış Nedeni Dağılımı */}
                       <div className="flex flex-wrap gap-2 mb-4">
                         {Object.entries(group.reasonCounts).sort((a,b)=>b[1]-a[1]).map(([reason, count]) => (
                           <span key={reason} className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border uppercase tracking-wider flex items-center gap-1 ${getReasonBadge(reason)}`}>
@@ -899,7 +775,6 @@
                         ))}
                       </div>
 
-                      {/* Personel Listesi */}
                       <div className="max-h-72 overflow-y-auto pr-2 space-y-2 flex-1 mt-2 bg-slate-50/50 dark:bg-slate-900/50 rounded-xl p-2 border border-slate-100 dark:border-slate-700/50">
                         {group.personnel.map(p => (
                           <div key={p.id} className="flex justify-between items-center p-3 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/80 rounded-xl transition-colors shadow-sm border border-slate-100 dark:border-slate-700/50">
@@ -907,8 +782,9 @@
                               <span className="font-bold text-slate-700 dark:text-slate-200 truncate text-sm">{p.name}</span>
                               <span className="text-[10px] font-semibold text-slate-400 mt-0.5 flex items-center gap-1"><Folder className="h-3 w-3"/> D-{p.folder} | No:{p.no}</span>
                             </div>
-                            <div className="flex flex-col items-end gap-1 shrink-0 ml-2">
-                              <span className="text-xs font-bold text-slate-500 dark:text-slate-400">{p.endDate}</span>
+                            <div className="flex items-center gap-2 shrink-0 ml-2">
+                              <button type="button" onClick={(e) => { e.stopPropagation(); setEditItem({...p}); }} className="p-1.5 text-blue-600 hover:bg-blue-100 dark:text-blue-400 dark:hover:bg-blue-900/30 rounded-lg transition-colors"><Edit2 className="h-3.5 w-3.5" /></button>
+                              <button type="button" onClick={(e) => { e.stopPropagation(); handleDeletePerson(p); }} className="p-1.5 text-rose-600 hover:bg-rose-100 dark:text-rose-400 dark:hover:bg-rose-900/30 rounded-lg transition-colors"><Trash2 className="h-3.5 w-3.5" /></button>
                             </div>
                           </div>
                         ))}
@@ -985,8 +861,8 @@
                   </div>
                 </div>
                 <div className="flex flex-col-reverse md:flex-row justify-between items-center gap-4">
-                  <button onClick={clearAllData} className="w-full md:w-auto px-6 py-4 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-2xl font-bold"><Trash2 className="h-4 w-4 inline mr-2" /> Tüm Kayıtları Sıfırla</button>
-                  <button onClick={handleBulkImport} disabled={isLoading} className={`w-full md:w-auto flex items-center justify-center gap-3 px-10 py-4 text-white rounded-2xl font-bold transition-all ${isLoading ? 'bg-indigo-300' : 'bg-gradient-to-r from-indigo-600 to-purple-600'}`}>
+                  <button type="button" onClick={clearAllData} className="w-full md:w-auto px-6 py-4 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-2xl font-bold"><Trash2 className="h-4 w-4 inline mr-2" /> Tüm Kayıtları Sıfırla</button>
+                  <button type="button" onClick={handleBulkImport} disabled={isLoading} className={`w-full md:w-auto flex items-center justify-center gap-3 px-10 py-4 text-white rounded-2xl font-bold transition-all ${isLoading ? 'bg-indigo-300' : 'bg-gradient-to-r from-indigo-600 to-purple-600'}`}>
                     {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <ClipboardPaste className="h-5 w-5" />} Verileri Aktar ve Kaydet
                   </button>
                 </div>
@@ -995,6 +871,41 @@
           </main>
           
           <br/><br/>
+
+          {/* UYARI VE ONAY PENCERESİ BURAYA GERİ EKLENDİ */}
+          {modalConfig && (
+            <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-300">
+              <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl border border-white dark:border-slate-700 rounded-[2rem] shadow-2xl shadow-slate-900/10 w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-300">
+                <div className="p-8 text-center">
+                  <div className={`mx-auto w-16 h-16 flex items-center justify-center rounded-2xl mb-6 ${modalConfig.type === 'confirm' ? 'bg-rose-100 text-rose-500 dark:bg-rose-900/50' : 'bg-blue-100 text-blue-500 dark:bg-blue-900/50'}`}>
+                    {modalConfig.type === 'confirm' ? <Trash2 className="h-8 w-8" /> : <FileText className="h-8 w-8" />}
+                  </div>
+                  <h3 className="font-black text-xl text-slate-800 dark:text-white mb-3">{modalConfig.title}</h3>
+                  <p className="text-slate-500 dark:text-slate-300 font-medium whitespace-pre-wrap leading-relaxed">{modalConfig.message}</p>
+                </div>
+                <div className="px-8 py-5 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-700 flex flex-col-reverse sm:flex-row justify-center gap-3">
+                  {modalConfig.type === 'confirm' && (
+                    <button type="button" onClick={() => setModalConfig(null)} disabled={isLoading} className="w-full sm:w-auto px-6 py-3 text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors">İptal Et</button>
+                  )}
+                  <button
+                    type="button"
+                    disabled={isLoading}
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const confirmFn = modalConfig.onConfirm;
+                      setModalConfig(null);
+                      if (confirmFn) await confirmFn();
+                    }}
+                    className={`w-full sm:w-auto flex justify-center items-center gap-2 px-8 py-3 text-sm font-bold text-white shadow-md rounded-xl transition-all ${isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:-translate-y-0.5'} ${modalConfig.type === 'confirm' ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-500/20' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/20'}`}
+                  >
+                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : (modalConfig.type === 'confirm' ? 'Evet, Onaylıyorum' : 'Tamam')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
       );
     }
